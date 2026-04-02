@@ -27,6 +27,26 @@ from prismatic.vla.datasets.rlds.utils.data_utils import (
     relabel_bridge_actions,
 )
 
+def robocasa_kitchen_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
+
+    # 1. Action (7-dim)
+    # 0~3: EEF 위치, 3~6: EEF 회전(axis_angle), 6~7: 그리퍼 동작
+    trajectory["action"] = tf.cast(trajectory["action"][..., :7], tf.float32)
+    
+    # 2. State (9-dim = 3 EEF pos + 4 EEF quat + 2 gripper)
+    # JSON 파일의 start, end 인덱스에 맞춰 정확히 슬라이싱합니다.
+    eef_pos = trajectory["observation"]["state"][..., 7:10]   # end_effector_position_absolute
+    eef_quat = trajectory["observation"]["state"][..., 13:17] # end_effector_rotation_absolute (quaternion)
+    gripper_joints = trajectory["observation"]["state"][..., 21:23] # gripper_qpos
+    
+    # EEF_state에 위치와 회전(쿼터니언) 할당 (총 7차원)
+    trajectory["observation"]["EEF_state"] = tf.concat([eef_pos, eef_quat], axis=-1)
+    
+    # 요청하신 대로 2개의 그리퍼 조인트를 모두 할당 (총 2차원)
+    trajectory["observation"]["gripper_state"] = gripper_joints 
+    
+    return trajectory
+
 
 def bridge_oxe_dataset_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -848,6 +868,8 @@ def aloha_dataset_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
 
 # === Registry ===
 OXE_STANDARDIZATION_TRANSFORMS = {
+    #se_revised
+    "robocasa_kitchen": robocasa_kitchen_transform,
     "bridge_oxe": bridge_oxe_dataset_transform,
     "bridge_orig": bridge_orig_dataset_transform,
     "bridge_dataset": bridge_orig_dataset_transform,

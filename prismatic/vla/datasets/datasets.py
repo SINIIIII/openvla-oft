@@ -36,9 +36,28 @@ class RLDSBatchTransform:
     def __call__(self, rlds_batch: Dict[str, Any]) -> Dict[str, Any]:
         """Converts a RLDS batch to the format expected by the OpenVLA collator/models."""
         dataset_name, current_action = rlds_batch["dataset_name"], rlds_batch["action"][0]
+        ds_name_str = dataset_name[0].decode() if isinstance(dataset_name[0], bytes) else str(dataset_name[0])
+
         img = Image.fromarray(rlds_batch["observation"]["image_primary"][0])
         lang = rlds_batch["task"]["language_instruction"].decode().lower()
         actions = rlds_batch["action"]
+
+        if "robocasa" in ds_name_str:
+            image_keys = ["image_primary", "image_secondary", "image_wrist"]
+        else:
+            # LIBERO 등 일반적인 경우는 primary와 wrist 2개 뷰 사용
+            image_keys = ["image_primary", "image_wrist"]
+
+        all_stack_pixels = []
+        for k in image_keys:
+            if k in rlds_batch["observation"]:
+                img_data = rlds_batch["observation"][k][0]
+                pil_img = Image.fromarray(img_data)
+                # image_transform은 이미지 1장당 6채널(SigLIP 3 + DinoV2 3)을 생성함
+                all_stack_pixels.append(self.image_transform(pil_img))
+        
+        # 모델 비전 백본이 요구하는 총 채널 수(12 또는 18)를 맞추기 위해 concat 수행
+        pixel_values = torch.cat(all_stack_pixels, dim=0)
 
         # Construct Chat-based Prompt =>> Input is default query + language instruction, output are the action tokens
         prompt_builder = self.prompt_builder_fn("openvla")
@@ -66,7 +85,7 @@ class RLDSBatchTransform:
         # Tensorize =>> Run Image Transform to get `pixel_values` =>> Return
         #   =>> IMPORTANT :: IF WE'RE USING HF LLM.forward(..., labels=labels), SHIFTING HAPPENS _INSIDE_ MODEL!
         input_ids, labels = torch.tensor(input_ids), torch.tensor(labels)
-        pixel_values = self.image_transform(img)
+        #pixel_values = self.image_transform(img)
 
         # [CRITICAL] We do not want to take the loss for anything but the predicted action tokens!
         labels[: -(action_chunk_len + 1)] = IGNORE_INDEX
@@ -115,6 +134,8 @@ class RLDSDataset(IterableDataset):
         # fmt: off
         if "aloha" in self.data_mix:
             load_camera_views = ("primary", "left_wrist", "right_wrist")
+        elif "robocasa" in self.data_mix: # RoboCasa 조건 추가
+            load_camera_views = ("primary", "secondary", "wrist")
         else:
             load_camera_views = ("primary", "wrist")
 

@@ -21,7 +21,8 @@ overwatch = initialize_overwatch(__name__)
 def make_oxe_dataset_kwargs(
     dataset_name: str,
     data_root_dir: Path,
-    load_camera_views: Tuple[str] = ("primary",),
+    #se_revised
+    load_camera_views: Tuple[str] = ("primary", "secondary", "wrist"),
     load_depth: bool = False,
     load_proprio: bool = True,
     load_language: bool = True,
@@ -29,8 +30,11 @@ def make_oxe_dataset_kwargs(
 ) -> Dict[str, Any]:
     """Generates config (kwargs) for given dataset from Open-X Embodiment."""
     dataset_kwargs = deepcopy(OXE_DATASET_CONFIGS[dataset_name])
-    if dataset_kwargs["action_encoding"] not in [ActionEncoding.EEF_POS, ActionEncoding.EEF_R6, ActionEncoding.JOINT_POS_BIMANUAL]:
-        raise ValueError(f"Cannot load `{dataset_name}`; only EEF_POS & EEF_R6 & JOINT_POS_BIMANUAL actions supported!")
+
+    #se_revised
+    if "robocasa" in dataset_name:
+        load_camera_views = ("primary", "secondary", "wrist")
+        #print(f"ROBOCASA has {load_camera_views}")
 
     # [Contract] For EEF_POS & EEF_R6 actions, only the last action dimension (gripper) is absolute!
     # Normalize all action dimensions *except* the gripper
