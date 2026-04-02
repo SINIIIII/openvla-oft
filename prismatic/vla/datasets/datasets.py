@@ -36,14 +36,16 @@ class RLDSBatchTransform:
     def __call__(self, rlds_batch: Dict[str, Any]) -> Dict[str, Any]:
         """Converts a RLDS batch to the format expected by the OpenVLA collator/models."""
         dataset_name, current_action = rlds_batch["dataset_name"], rlds_batch["action"][0]
-        ds_name_str = dataset_name[0].decode() if isinstance(dataset_name[0], bytes) else str(dataset_name[0])
+        ds_name_str = str(dataset_name)
+        print(f"dataset_name is {ds_name_str}")
 
         img = Image.fromarray(rlds_batch["observation"]["image_primary"][0])
         lang = rlds_batch["task"]["language_instruction"].decode().lower()
         actions = rlds_batch["action"]
 
         if "robocasa" in ds_name_str:
-            image_keys = ["image_primary", "image_secondary", "image_wrist"]
+            print(f"robocasa condition is true")
+            image_keys = ["image_primary", "image_secondary"]
         else:
             # LIBERO 등 일반적인 경우는 primary와 wrist 2개 뷰 사용
             image_keys = ["image_primary", "image_wrist"]
